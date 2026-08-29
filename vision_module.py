@@ -1,13 +1,8 @@
 import os
 import time
 import urllib.request
-
 import cv2
 import mediapipe as mp
-
-# The legacy `mp.solutions.pose` API is broken in current mediapipe pip
-# releases on some platforms (a known, currently open packaging issue).
-# This uses the actively-supported Tasks API (PoseLandmarker) instead.
 
 MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
@@ -15,14 +10,11 @@ MODEL_URL = (
 )
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "pose_landmarker_lite.task")
 
-# Reduced skeleton connections (landmark index pairs) for drawing the
-# overlay. Full 33-point reference:
-# https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker
 POSE_CONNECTIONS = [
     (11, 12), (11, 13), (13, 15), (12, 14), (14, 16),  # shoulders + arms
-    (11, 23), (12, 24), (23, 24),                      # torso
-    (23, 25), (25, 27), (24, 26), (26, 28),            # legs
-    (27, 29), (29, 31), (28, 30), (30, 32),            # feet
+    (11, 23), (12, 24), (23, 24),                     # torso
+    (23, 25), (25, 27), (24, 26), (26, 28),           # legs
+    (27, 29), (29, 31), (28, 30), (30, 32),           # feet
 ]
 
 NOSE_INDEX = 0
@@ -36,12 +28,7 @@ def _ensure_model():
 
 
 class FallDetector:
-    """Pose-based fall / sudden-motion detector.
-
-    Call process_frame(frame) once per captured frame. It draws the
-    skeleton overlay in place and returns whether a fall was detected
-    on this frame.
-    """
+    """Pose-based fall / sudden-motion detector."""
 
     def __init__(self, drop_threshold: float = 0.12):
         _ensure_model()
@@ -56,21 +43,25 @@ class FallDetector:
 
         self.drop_threshold = drop_threshold
         self.prev_y = None
-        self._start_time = time.time()
+        self._last_ts = 0
 
-    def _timestamp_ms(self) -> int:
-        return int((time.time() - self._start_time) * 1000)
+    def _get_next_ts(self) -> int:
+        """Guarantees strictly increasing timestamp values for MediaPipe VIDEO mode."""
+        now_ms = int(time.time() * 1000)
+        if now_ms <= self._last_ts:
+            now_ms = self._last_ts + 1
+        self._last_ts = now_ms
+        return now_ms
 
     def process_frame(self, frame):
         """
-        frame: BGR frame from cv2.VideoCapture, modified in place with the
-               skeleton overlay (and an ALERT caption if a fall is detected).
+        frame: BGR frame from cv2.VideoCapture
         Returns: (frame, fall_detected: bool)
         """
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
 
-        result = self.landmarker.detect_for_video(mp_image, self._timestamp_ms())
+        result = self.landmarker.detect_for_video(mp_image, self._get_next_ts())
 
         fall_detected = False
 
@@ -109,11 +100,33 @@ class FallDetector:
 
             self.prev_y = current_y
         else:
-            # No pose in frame — don't let a stale prev_y trigger a false
-            # delta once the subject reappears.
             self.prev_y = None
 
         return frame, fall_detected
 
     def close(self):
         self.landmarker.close()
+
+
+def get_camera_frame(cap, detector):
+    """
+    Helper function to safely read from OpenCV camera and process through FallDetector.
+    If camera capture fails, returns a blank placeholder frame.
+    """
+    success, frame = cap.read()
+    if not success or frame is None:
+        # Fallback 640x480 black frame with status message
+        import numpy as np
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        cv2.putText(
+            frame,
+            "CAMERA FEED UNAVAILABLE",
+            (160, 240),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 0, 255),
+            2,
+        )
+        return frame, False
+
+    return detector.process_frame(frame)

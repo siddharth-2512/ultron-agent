@@ -14,3 +14,4 @@ hospital.db
 # VS Code / OS Settings
 .vscode/
 .DS_Store
+ pose_landmarker_lite.task

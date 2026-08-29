@@ -224,8 +224,18 @@ const statusColors = {
   critical: { dot: '#ef4444' },
   empty:    { dot: '#4b5975' },
 };
-// Real urgency order, not just DB order — critical beds surface first.
+
 const severityRank = { critical: 0, warning: 1, normal: 2, empty: 3 };
+
+function speakText(text) {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    window.speechSynthesis.speak(utterance);
+  }
+}
 
 function renderCards(patients) {
   const grid = document.getElementById('cardsGrid');
@@ -280,7 +290,7 @@ function setBannerCritical(title, sub, flash = false) {
   document.getElementById('bannerSub').textContent = sub;
   if (flash) {
     banner.classList.remove('flash');
-    void banner.offsetWidth; // restart animation
+    void banner.offsetWidth;
     banner.classList.add('flash');
   }
 }
@@ -301,7 +311,7 @@ function appendLog(message, isSystem = false) {
   body.scrollTop = body.scrollHeight;
 }
 
-// ---- WebSocket wiring ----
+// WebSocket wiring
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${location.host}/ws`);
@@ -343,6 +353,9 @@ function connect() {
 
     if (msg.type === 'log') {
       appendLog(msg.message, true);
+      if (msg.speech) {
+        speakText(msg.speech);
+      }
     }
 
     if (msg.type === 'voice_state') {
@@ -366,12 +379,57 @@ function connect() {
 }
 connect();
 
+// Voice Recognition Wire-Up
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    const btn = document.getElementById('voiceBtn');
+    btn.textContent = '🎙️ Listening...';
+    btn.classList.add('listening');
+    appendLog('[Voice Engine]: Listening for voice input...', true);
+  };
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    appendLog(`[User]: ${transcript}`);
+    fetch('/api/voice/trigger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: transcript })
+    });
+  };
+
+  recognition.onerror = (event) => {
+    appendLog(`[Voice Engine Error]: ${event.error}`, true);
+  };
+
+  recognition.onend = () => {
+    const btn = document.getElementById('voiceBtn');
+    btn.textContent = '🎤 Ask ULTRON';
+    btn.classList.remove('listening');
+  };
+}
+
 document.getElementById('ackBtn').addEventListener('click', () => {
   fetch('/api/alert/acknowledge', { method: 'POST' });
 });
 
 document.getElementById('voiceBtn').addEventListener('click', () => {
-  fetch('/api/voice/trigger', { method: 'POST' });
+  if (recognition) {
+    try {
+      recognition.start();
+    } catch (e) {
+      recognition.stop();
+    }
+  } else {
+    fetch('/api/voice/trigger', { method: 'POST' });
+  }
 });
 </script>
 </body>
