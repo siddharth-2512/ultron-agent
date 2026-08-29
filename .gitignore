@@ -1,0 +1,16 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Python Cache & Databases
+__pycache__/
+*.pyc
+hospital.db
+
+# Environment Variables / API Keys
+.env
+
+# VS Code / OS Settings
+.vscode/
+.DS_Store

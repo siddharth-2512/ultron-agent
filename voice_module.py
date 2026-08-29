@@ -1,41 +1,42 @@
+import speech_recognition as sr
 import pyttsx3
 import speech_recognition as sr
+import pyttsx3
 
-# Initialize Text-to-Speech Engine
-tts_engine = pyttsx3.init()
-tts_engine.setProperty('rate', 160)
-
+# Initialize TTS Engine
+engine = pyttsx3.init()
 
 def speak(text):
-    """Converts text to spoken audio output."""
-    print(f"[ULTRON Audio Output]: {text}")
-    tts_engine.say(text)
-    tts_engine.runAndWait()
-
+    """Re-initialized engine call to avoid pyttsx3 thread-locking bug."""
+    try:
+        engine = pyttsx3.init()
+        engine.setProperty("rate", 160)
+        engine.setProperty("volume", 1.0)
+        engine.say(text)
+        engine.runAndWait()
+        engine.stop()
+    except Exception as e:
+        print(f"[TTS Error]: {e}")
 
 def listen_command():
-    """Captures audio from microphone and transcribes speech."""
-    recognizer = sr.Recognizer()
+    """Tuned SpeechRecognition for crisp, fast capture."""
+    r = sr.Recognizer()
+    
+    # Prevents listening indefinitely or picking up background hums
+    r.dynamic_energy_threshold = True
+    r.energy_threshold = 300  # Adjust baseline noise threshold
+    r.pause_threshold = 0.8   # Wait 0.8s of silence before concluding speech
 
     with sr.Microphone() as source:
-        speak("Listening for staff command.")
-        recognizer.adjust_for_ambient_noise(source, duration=1)
-        audio = recognizer.listen(source)
-
+        # Quick ambient calibration
+        r.adjust_for_ambient_noise(source, duration=0.5)
         try:
-            transcribed_text = recognizer.recognize_google(audio)
-            print(f"[Staff Input Detected]: '{transcribed_text}'")
-            return transcribed_text
-        except sr.UnknownValueError:
-            print("[ULTRON Audio Error]: Could not understand audio.")
-            return ""
+            # 5-second max wait to start speaking, 7-second max speech duration
+            audio = r.listen(source, timeout=5, phrase_time_limit=7)
+            command = r.recognize_google(audio)
+            return command
+        except (sr.WaitTimeoutError, sr.UnknownValueError):
+            return None
         except sr.RequestError as e:
-            print(f"[ULTRON Audio Error]: Could not request results; {e}")
-            return ""
-
-
-if __name__ == "__main__":
-    speak("ULTRON Audio Engine initialized.")
-    command = listen_command()
-    if command:
-        speak(f"Command received: {command}")
+            print(f"[STT API Error]: {e}")
+            return None
