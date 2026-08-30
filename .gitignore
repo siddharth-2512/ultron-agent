@@ -3,15 +3,26 @@ venv/
 env/
 ENV/
 
-# Python Cache & Databases
+# Python Cache & Compiled Files
 __pycache__/
-*.pyc
-hospital.db
+*.py[cod]
+*$py.class
+*.so
 
-# Environment Variables / API Keys
+# Environment Variables & API Keys
 .env
+.env.local
 
-# VS Code / OS Settings
+# Databases & Large Media Models
+hospital.db
+*.db
+*.sqlite3
+pose_landmarker_lite.task
+
+# IDEs & System Settings
 .vscode/
+.idea/
 .DS_Store
- pose_landmarker_lite.task
+Thumbs.db
+ehthumbs.db
+*.swp

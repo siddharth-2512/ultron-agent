@@ -3,6 +3,7 @@ import sqlite3
 conn = sqlite3.connect("hospital.db")
 cursor = conn.cursor()
 
+# 1. Patient Telemetry Table
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS patients (
     bed_id INTEGER PRIMARY KEY,
@@ -25,6 +26,28 @@ patients = [
 ]
 
 cursor.executemany("INSERT OR REPLACE INTO patients VALUES (?, ?, ?, ?, ?, ?, ?)", patients)
+
+# 2. Analytics: Fall Alerts Table
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS fall_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bed_id TEXT NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    confidence_score REAL,
+    status TEXT DEFAULT 'UNACKNOWLEDGED'
+)
+""")
+
+# 3. Analytics: LLM Query Logs Table
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS query_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_prompt TEXT NOT NULL,
+    llm_response TEXT NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
 conn.commit()
 conn.close()
-print("hospital.db created successfully!")
+print("hospital.db updated with analytics tables successfully!")

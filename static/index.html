@@ -1,436 +1,236 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ULTRON — Ward 4B Clinical Dashboard</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #0b1220;
-    --panel: #141b2e;
-    --panel-2: #101729;
-    --border: #223049;
-    --border-soft: #1b2740;
-    --text: #e2e8f0;
-    --muted: #7c8ba6;
-    --muted-2: #4b5975;
-    --critical: #ef4444;
-    --critical-bg: #2a1416;
-    --critical-border: #7f2b2b;
-    --warning: #f59e0b;
-    --warning-bg: #2a2110;
-    --normal: #10b981;
-    --normal-bg: #10241c;
-    --empty: #4b5975;
-    --accent: #38bdf8;
-  }
-  * { box-sizing: border-box; }
-  html, body {
-    margin: 0; padding: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Inter', system-ui, sans-serif;
-    height: 100%;
-  }
-  .mono { font-family: 'JetBrains Mono', monospace; }
-  #app { display: flex; flex-direction: column; height: 100vh; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ULTRON — Ward 4B Clinical Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background-color: #f1f5f9; color: #0f172a; font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; padding: 16px; gap: 16px; overflow: hidden; }
+        header { background: #ffffff; padding: 12px 24px; border-radius: 12px; border: 1px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .header-title { font-size: 20px; font-weight: bold; color: #0f172a; display: flex; align-items: center; gap: 8px; }
+        .badge-ward { font-size: 11px; background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 12px; border: 1px solid #bfdbfe; }
+        .badge-live { font-size: 12px; font-weight: 600; color: #047857; background: #ecfdf5; padding: 6px 12px; border-radius: 20px; border: 1px solid #a7f3d0; display: flex; align-items: center; gap: 6px; }
+        .pulse-dot { width: 10px; height: 10px; background: #10b981; border-radius: 50%; }
+        .btn-ack { background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .btn-ack:hover { background: #b91c1c; }
+        
+        main { display: grid; grid-template-columns: 5fr 7fr; gap: 16px; flex: 1; min-height: 0; }
+        .left-col { display: flex; flex-direction: column; gap: 16px; }
+        .right-col { background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px; overflow-y: auto; }
+        
+        .card { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .video-container { position: relative; width: 100%; aspect-ratio: 16/9; background: #020617; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        #videoStream { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* Flashing Translucent Red Overlay */
+        .fall-overlay {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: rgba(225, 29, 72, 0.45);
+            border: 4px solid #dc2626;
+            z-index: 10;
+            animation: flashOverlay 1s infinite alternate ease-in-out;
+            align-items: center;
+            justify-content: center;
+        }
+        .fall-overlay.active { display: flex; }
+        .alert-banner {
+            background: #dc2626;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
 
-  /* Navbar */
-  .navbar {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 16px 24px; border-bottom: 1px solid var(--border-soft);
-  }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .brand-icon {
-    width: 34px; height: 34px; border-radius: 8px;
-    background: linear-gradient(135deg, #1d4ed8, #38bdf8);
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 15px;
-  }
-  .brand-title { font-weight: 700; font-size: 16px; letter-spacing: 0.04em; }
-  .brand-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
-  .alert-badge {
-    font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 6px;
-    background: var(--critical-bg); color: #fca5a5; border: 1px solid var(--critical-border);
-    transition: all 0.2s ease;
-  }
-  .alert-badge.ok { background: var(--normal-bg); color: #6ee7b7; border-color: #1f5c46; }
+        @keyframes flashOverlay {
+            from { opacity: 0.3; }
+            to { opacity: 0.95; }
+        }
 
-  .conn-status { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); margin-right: 14px; }
-  .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; }
-  .conn-status.offline .conn-dot { background: #f59e0b; animation: pulse 1s infinite; }
-
-  /* Alert banner */
-  .banner {
-    margin: 16px 24px 0; padding: 14px 18px; border-radius: 10px;
-    background: var(--critical-bg); border: 1px solid var(--critical-border);
-    display: flex; align-items: center; gap: 16px; transition: all 0.25s ease;
-  }
-  .banner.ack { background: var(--panel); border-color: var(--border); }
-  .banner.flash { animation: flash-border 0.6s ease-out 2; }
-  @keyframes flash-border {
-    0%, 100% { border-color: var(--critical-border); }
-    50% { border-color: #ff8080; box-shadow: 0 0 0 2px rgba(239,68,68,0.25); }
-  }
-  .video-wrap { position: relative; width: 240px; height: 135px; border-radius: 6px; overflow: hidden; background: #000; flex-shrink: 0; }
-  .video-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .live-tag {
-    position: absolute; top: 6px; right: 6px; font-size: 9px; font-weight: 700;
-    background: rgba(0,0,0,0.55); color: #4ade80; padding: 2px 6px; border-radius: 4px;
-    display: flex; align-items: center; gap: 4px;
-  }
-  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: pulse 1.4s infinite; }
-  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
-  .banner-text { flex: 1; }
-  .banner-title { font-weight: 700; font-size: 14px; color: #fca5a5; }
-  .banner-sub { font-size: 12px; color: #f3a4a4; margin-top: 3px; }
-  .banner.ack .banner-title { color: var(--text); }
-  .banner.ack .banner-sub { color: var(--muted); }
-  .ack-btn {
-    font-size: 12px; font-weight: 600; padding: 8px 14px; border-radius: 6px;
-    background: transparent; border: 1px solid var(--critical-border); color: #fca5a5;
-    cursor: pointer; transition: background 0.15s ease;
-  }
-  .ack-btn:hover { background: rgba(239,68,68,0.1); }
-
-  /* Main grid */
-  .main {
-    flex: 1; display: flex; gap: 16px; padding: 16px 24px; overflow: hidden;
-  }
-  .cards-grid {
-    flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
-    align-content: start; overflow-y: auto;
-  }
-  .card {
-    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-    padding: 14px; transition: border-color 0.2s ease, transform 0.15s ease, box-shadow 0.15s ease;
-  }
-  .card:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.25); }
-  .card:focus-within, .ack-btn:focus-visible, .voice-btn:focus-visible {
-    outline: 2px solid var(--accent); outline-offset: 2px;
-  }
-  .card.critical { background: var(--critical-bg); border-color: var(--critical-border); }
-  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-  .card-title { font-size: 13px; font-weight: 600; }
-  .card.critical .card-title { color: #fca5a5; }
-  .status-dot { width: 7px; height: 7px; border-radius: 50%; }
-  .vitals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .vital-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-  .vital-value { font-size: 14px; font-weight: 700; margin-top: 2px; }
-  .card.critical .vital-value.bp { color: #fca5a5; }
-  .empty-text { font-size: 12px; color: var(--muted); }
-
-  /* Log panel */
-  .log-panel {
-    width: 320px; flex-shrink: 0; background: var(--panel); border: 1px solid var(--border);
-    border-radius: 10px; display: flex; flex-direction: column; overflow: hidden;
-  }
-  .log-header {
-    padding: 12px 14px; font-size: 11px; font-weight: 700; color: var(--muted);
-    letter-spacing: 0.06em; border-bottom: 1px solid var(--border-soft);
-  }
-  .log-body {
-    flex: 1; overflow-y: auto; padding: 12px 14px; font-size: 12px; line-height: 1.6;
-    color: var(--accent); background: #060b16;
-  }
-  .log-line { margin-bottom: 10px; white-space: pre-wrap; }
-  .log-line.system { color: var(--muted); }
-
-  /* Bottom bar */
-  .bottom-bar {
-    margin: 0 24px 20px; padding: 10px 16px; border-radius: 10px;
-    background: var(--panel); border: 1px solid var(--border);
-    display: flex; align-items: center; gap: 12px;
-  }
-  .voice-btn {
-    font-size: 12px; font-weight: 700; padding: 8px 14px; border-radius: 6px;
-    background: #0c2c4a; color: #7dd3fc; border: 1px solid #1d4e78; cursor: pointer;
-  }
-  .voice-btn.listening { background: #4a3a0c; color: #fde047; border-color: #78621d; }
-  .hint { font-size: 12px; color: var(--muted-2); }
-
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-
-  @media (prefers-reduced-motion: reduce) {
-    .live-dot, .conn-status.offline .conn-dot, .banner.flash { animation: none; }
-    .card { transition: none; }
-  }
-
-  @media (max-width: 900px) {
-    .main { flex-direction: column; overflow: visible; }
-    .cards-grid { grid-template-columns: repeat(2, 1fr); overflow: visible; }
-    .log-panel { width: 100%; height: 260px; }
-    .banner { flex-wrap: wrap; }
-  }
-  @media (max-width: 520px) {
-    .cards-grid { grid-template-columns: 1fr; }
-    .navbar { padding: 12px 16px; }
-    .banner, .main, .bottom-bar { margin-left: 12px; margin-right: 12px; padding-left: 12px; padding-right: 12px; }
-  }
-</style>
+        .terminal-card { 
+          flex: 1; 
+          display: flex; 
+          flex-direction: column; 
+          min-height: 0; /* Prevents flex items from expanding beyond parent */
+        }
+        .terminal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-weight: bold; font-size: 12px; color: #334155; text-transform: uppercase; }
+        .btn-voice { background: #2563eb; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        #logs { 
+          flex: 1; 
+          background: #0f172a; 
+          color: #e2e8f0; 
+          border-radius: 8px; 
+          padding: 12px; 
+          font-family: monospace; 
+          font-size: 12px; 
+          overflow-y: auto; /* Enables scrolling */
+          max-height: 180px; /* Forces fixed bounds so scrollbar appears */
+          display: flex; 
+          flex-direction: column; 
+          gap: 8px; 
+        }
+        
+        .patient-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+        .vital-card { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px; }
+        .vital-card.critical { border-color: #ef4444; background: #fef2f2; }
+        .vital-card.warning { border-color: #f59e0b; background: #fffbeb; }
+        
+        .vital-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+        .metric-box { background: #eff6ff; border: 1px solid #dbeafe; padding: 10px; border-radius: 8px; }
+        .metric-label { font-size: 11px; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 8px; }
+        .metric-value { font-size: 16px; font-weight: bold; color: #0f172a; margin-top: 4px; display: block; }
+        
+        .icon-large { font-size: 20px; }
+        .status-pill { font-size: 10px; font-weight: bold; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; }
+        .status-normal { background: #d1fae5; color: #065f46; }
+        .status-critical { background: #ffe4e6; color: #9f1239; }
+        .status-warning { background: #fef3c7; color: #92400e; }
+    </style>
 </head>
 <body>
-<div id="app">
 
-  <div class="navbar">
-    <div class="brand">
-      <div class="brand-icon">⚕</div>
-      <div>
-        <div class="brand-title">ULTRON</div>
-        <div class="brand-sub">Ward 4B · live database integration</div>
-      </div>
+    <header>
+    <div class="header-title">
+        <i class="fa-solid fa-heart-pulse icon-large" style="color: #2563eb;"></i>
+        <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 20px; font-weight: 800; tracking-wide: 0.05em;">ULTRON</span>
+                <span class="badge-ward">WARD 4B</span>
+            </div>
+            <div style="font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
+                Unified Life-Tracking & Threat Response Observability Network
+            </div>
+        </div>
     </div>
-    <div style="display:flex; align-items:center;">
-      <div id="connStatus" class="conn-status"><span class="conn-dot"></span>Live</div>
-      <div id="alertBadge" class="alert-badge">⚠ 0 alerts</div>
+    <div style="display: flex; gap: 16px; align-items: center;">
+        <div class="badge-live"><div class="pulse-dot"></div> LIVE MONITORING</div>
+        <button class="btn-ack" onclick="acknowledgeAlert()"><i class="fa-solid fa-bell-slash icon-large"></i> ACKNOWLEDGE ALERTS</button>
     </div>
-  </div>
+</header>
 
-  <div id="banner" class="banner">
-    <div class="video-wrap">
-      <img id="videoFrame" src="" alt="live camera feed" />
-      <div class="live-tag"><span class="live-dot"></span>LIVE</div>
-    </div>
-    <div class="banner-text">
-      <div id="bannerTitle" class="banner-title">Monitoring active</div>
-      <div id="bannerSub" class="banner-sub">No active alerts.</div>
-    </div>
-    <button id="ackBtn" class="ack-btn">Acknowledge</button>
-  </div>
+    <main>
+        <section class="left-col">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 12px; font-weight: bold; color: #334155; display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-video icon-large" style="color: #2563eb;"></i> BED 3 CAM FEED
+                    </span>
+                    <span style="font-size: 10px; background: #eff6ff; color: #1d4ed8; padding: 2px 6px; font-weight: bold; border-radius: 4px;">1080P • 30 FPS</span>
+                </div>
+                <div class="video-container">
+                    <img id="videoStream" src="" alt="Connecting Camera Stream...">
+                    <div id="videoOverlay" class="fall-overlay">
+                        <div class="alert-banner">
+                            <i class="fa-solid fa-triangle-exclamation icon-large"></i> ATTENTION REQUIRED
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-  <div class="main">
-    <div id="cardsGrid" class="cards-grid"></div>
+            <div class="card terminal-card">
+                <div class="terminal-header">
+                    <span><i class="fa-solid fa-terminal icon-large" style="color: #2563eb; margin-right: 6px;"></i> Clinical Logs & Assistant</span>
+                    <button class="btn-voice" onclick="triggerVoice()"><i class="fa-solid fa-microphone icon-large"></i> Speak Command</button>
+                </div>
+                <div id="logs">
+                    <div style="color: #94a3b8;">[SYSTEM] System online. Dashboard initialized...</div>
+                </div>
+            </div>
+        </section>
 
-    <div class="log-panel">
-      <div class="log-header">VOICE &amp; AI TERMINAL LOG</div>
-      <div id="logBody" class="log-body"></div>
-    </div>
-  </div>
+        <section class="right-col">
+            <h2 style="font-size: 12px; font-weight: bold; color: #475569; text-transform: uppercase; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-bed icon-large" style="color: #2563eb;"></i> Ward Patient Stations
+            </h2>
+            <div id="patientGrid" class="patient-grid"></div>
+        </section>
+    </main>
 
-  <div class="bottom-bar">
-    <button id="voiceBtn" class="voice-btn">🎤 Ask ULTRON</button>
-    <div class="hint">— "Summarize bed 3's last hour" or "Flag any patient above threshold"</div>
-  </div>
+    <script>
+        const ws = new WebSocket(`ws://${location.host}/ws`);
 
-</div>
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === "video") {
+                document.getElementById("videoStream").src = `data:image/jpeg;base64,${data.frame}`;
+            } else if (data.type === "vitals") {
+                renderPatients(data.patients);
+            } else if (data.type === "alert") {
+                const overlay = document.getElementById("videoOverlay");
+                if (data.acknowledged) {
+                    overlay.classList.remove("active");
+                } else if (data.fall || data.type === "alert") {
+                    overlay.classList.add("active");
+                }
+            } else if (data.type === "log") {
+                appendLog(data.message);
+                if (data.message.includes("[FALL]")) {
+                    document.getElementById("videoOverlay").classList.add("active");
+                }
+            }
+        };
 
-<script>
-const statusColors = {
-  normal:   { dot: '#22c55e' },
-  warning:  { dot: '#f59e0b' },
-  critical: { dot: '#ef4444' },
-  empty:    { dot: '#4b5975' },
-};
+        function renderPatients(patients) {
+            const grid = document.getElementById("patientGrid");
+            grid.innerHTML = patients.map(p => `
+                <div class="vital-card ${p.status}">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: bold; font-size: 14px; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-user-doctor icon-large" style="color: #2563eb;"></i> Bed ${p.bed_id} — ${p.patient_name}
+                        </span>
+                        <span class="status-pill status-${p.status}">${p.status}</span>
+                    </div>
+                    <div class="vital-metrics">
+                        <div class="metric-box">
+                            <span class="metric-label"><i class="fa-solid fa-heart icon-large" style="color: #ef4444;"></i> Heart Rate</span>
+                            <span class="metric-value">${p.hr}</span>
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-label"><i class="fa-solid fa-gauge-high icon-large" style="color: #2563eb;"></i> Blood Pressure</span>
+                            <span class="metric-value">${p.bp}</span>
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-label"><i class="fa-solid fa-lungs icon-large" style="color: #0284c7;"></i> SpO2</span>
+                            <span class="metric-value">${p.spo2}</span>
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-label"><i class="fa-solid fa-temperature-half icon-large" style="color: #d97706;"></i> Temp</span>
+                            <span class="metric-value">${p.temp}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
 
-const severityRank = { critical: 0, warning: 1, normal: 2, empty: 3 };
+        function appendLog(msg) {
+          const logs = document.getElementById("logs");
+          const div = document.createElement("div");
+          div.textContent = msg;
+          logs.appendChild(div);
 
-function speakText(text) {
-  if ('speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-    window.speechSynthesis.speak(utterance);
-  }
-}
-
-function renderCards(patients) {
-  const grid = document.getElementById('cardsGrid');
-  grid.innerHTML = '';
-  const sorted = [...patients].sort(
-    (a, b) => (severityRank[a.status] ?? 9) - (severityRank[b.status] ?? 9) || a.bed_id - b.bed_id
-  );
-  sorted.forEach(p => {
-    const card = document.createElement('div');
-    card.className = 'card' + (p.status === 'critical' ? ' critical' : '');
-
-    const dotColor = (statusColors[p.status] || statusColors.empty).dot;
-
-    let body = '';
-    if (p.status !== 'empty') {
-      body = `
-        <div class="vitals-grid">
-          <div><div class="vital-label">HR</div><div class="vital-value mono">${p.hr}</div></div>
-          <div><div class="vital-label">BP</div><div class="vital-value mono ${p.status==='critical' ? 'bp' : ''}">${p.bp}</div></div>
-          <div><div class="vital-label">SpO2</div><div class="vital-value mono">${p.spo2}</div></div>
-          <div><div class="vital-label">Temp</div><div class="vital-value mono">${p.temp}</div></div>
-        </div>`;
-    } else {
-      body = `<div class="empty-text">No patient assigned</div>`;
-    }
-
-    card.innerHTML = `
-      <div class="card-header">
-        <div class="card-title">Bed ${p.bed_id} — ${p.patient_name}</div>
-        <div class="status-dot" style="background:${dotColor}"></div>
-      </div>
-      ${body}`;
-    grid.appendChild(card);
-  });
-}
-
-function updateAlertBadge(criticalCount) {
-  const badge = document.getElementById('alertBadge');
-  if (criticalCount > 0) {
-    badge.textContent = `⚠ ${criticalCount} alert${criticalCount > 1 ? 's' : ''}`;
-    badge.classList.remove('ok');
-  } else {
-    badge.textContent = '✓ 0 alerts';
-    badge.classList.add('ok');
-  }
-}
-
-function setBannerCritical(title, sub, flash = false) {
-  const banner = document.getElementById('banner');
-  banner.classList.remove('ack');
-  document.getElementById('bannerTitle').textContent = title;
-  document.getElementById('bannerSub').textContent = sub;
-  if (flash) {
-    banner.classList.remove('flash');
-    void banner.offsetWidth;
-    banner.classList.add('flash');
-  }
-}
-
-function setBannerAck(title, sub) {
-  const banner = document.getElementById('banner');
-  banner.classList.add('ack');
-  document.getElementById('bannerTitle').textContent = title;
-  document.getElementById('bannerSub').textContent = sub;
-}
-
-function appendLog(message, isSystem = false) {
-  const body = document.getElementById('logBody');
-  const line = document.createElement('div');
-  line.className = 'log-line' + (isSystem ? ' system' : '');
-  line.textContent = message;
-  body.appendChild(line);
-  body.scrollTop = body.scrollHeight;
-}
-
-// WebSocket wiring
-function connect() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws = new WebSocket(`${proto}://${location.host}/ws`);
-  const conn = document.getElementById('connStatus');
-
-  ws.onopen = () => {
-    conn.classList.remove('offline');
-    conn.innerHTML = '<span class="conn-dot"></span>Live';
-  };
-
-  ws.onmessage = (event) => {
-    const msg = JSON.parse(event.data);
-
-    if (msg.type === 'vitals') {
-      renderCards(msg.patients);
-      updateAlertBadge(msg.critical_count);
-      if (msg.critical_count > 0 && !document.getElementById('banner').dataset.manualAck) {
-        const c = msg.critical[0];
-        setBannerCritical(`♥ Bed ${c.bed_id} — ${c.patient_name}`, `BP ${c.bp} — above threshold`);
+          // Scroll to bottom
+          setTimeout(() => {
+              logs.scrollTop = logs.scrollHeight;
+          }, 50);
       }
-    }
 
-    if (msg.type === 'video') {
-      document.getElementById('videoFrame').src = 'data:image/jpeg;base64,' + msg.frame;
-    }
+        async function triggerVoice() {
+            await fetch('/api/voice/trigger', { method: 'POST' });
+        }
 
-    if (msg.type === 'alert') {
-      if (msg.fall) {
-        document.getElementById('banner').dataset.manualAck = '';
-        setBannerCritical('ALERT: PATIENT DISTRESS DETECTED!', 'Immediate attention required.', true);
-        updateAlertBadge(1);
-      }
-      if (msg.acknowledged) {
-        document.getElementById('banner').dataset.manualAck = '1';
-        setBannerAck('All alerts acknowledged', 'Monitoring active for 6 beds.');
-        updateAlertBadge(0);
-      }
-    }
-
-    if (msg.type === 'log') {
-      appendLog(msg.message, true);
-      if (msg.speech) {
-        speakText(msg.speech);
-      }
-    }
-
-    if (msg.type === 'voice_state') {
-      const btn = document.getElementById('voiceBtn');
-      if (msg.listening) {
-        btn.textContent = '🎙️ Listening...';
-        btn.classList.add('listening');
-      } else {
-        btn.textContent = '🎤 Ask ULTRON';
-        btn.classList.remove('listening');
-      }
-    }
-  };
-
-  ws.onclose = () => {
-    conn.classList.add('offline');
-    conn.innerHTML = '<span class="conn-dot"></span>Reconnecting...';
-    appendLog('[System]: Connection lost — reconnecting...', true);
-    setTimeout(connect, 2000);
-  };
-}
-connect();
-
-// Voice Recognition Wire-Up
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition = null;
-
-if (SpeechRecognition) {
-  recognition = new SpeechRecognition();
-  recognition.lang = 'en-US';
-  recognition.interimResults = false;
-
-  recognition.onstart = () => {
-    const btn = document.getElementById('voiceBtn');
-    btn.textContent = '🎙️ Listening...';
-    btn.classList.add('listening');
-    appendLog('[Voice Engine]: Listening for voice input...', true);
-  };
-
-  recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    appendLog(`[User]: ${transcript}`);
-    fetch('/api/voice/trigger', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: transcript })
-    });
-  };
-
-  recognition.onerror = (event) => {
-    appendLog(`[Voice Engine Error]: ${event.error}`, true);
-  };
-
-  recognition.onend = () => {
-    const btn = document.getElementById('voiceBtn');
-    btn.textContent = '🎤 Ask ULTRON';
-    btn.classList.remove('listening');
-  };
-}
-
-document.getElementById('ackBtn').addEventListener('click', () => {
-  fetch('/api/alert/acknowledge', { method: 'POST' });
-});
-
-document.getElementById('voiceBtn').addEventListener('click', () => {
-  if (recognition) {
-    try {
-      recognition.start();
-    } catch (e) {
-      recognition.stop();
-    }
-  } else {
-    fetch('/api/voice/trigger', { method: 'POST' });
-  }
-});
-</script>
+        async function acknowledgeAlert() {
+            document.getElementById("videoOverlay").classList.remove("active");
+            await fetch('/api/alert/acknowledge', { method: 'POST' });
+        }
+    </script>
 </body>
 </html>

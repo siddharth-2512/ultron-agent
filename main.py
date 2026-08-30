@@ -7,6 +7,7 @@ import sqlite3
 import threading
 import time
 import urllib.request
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Optional
 
@@ -14,12 +15,11 @@ import cv2
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
-import voice_module  # unchanged from the Tkinter version
+import voice_module
 from vision_module import FallDetector
+from voice_module import log_query, voice_engine
 
 DB_PATH = "hospital.db"
-
-app = FastAPI(title="ULTRON Clinical Dashboard")
 
 # ---------------------------------------------------------------------------
 # WebSocket connection manager
@@ -27,6 +27,7 @@ app = FastAPI(title="ULTRON Clinical Dashboard")
 
 
 class ConnectionManager:
+
     def __init__(self):
         self.active: List[WebSocket] = []
 
@@ -55,7 +56,7 @@ main_loop: Optional[asyncio.AbstractEventLoop] = None
 
 def broadcast_threadsafe(message: dict):
     """Called from the background (non-async) video/voice threads."""
-    if main_loop is not None:
+    if main_loop is not None and main_loop.is_running():
         asyncio.run_coroutine_threadsafe(manager.broadcast(message), main_loop)
 
 
@@ -64,12 +65,30 @@ state = {
 }
 
 # ---------------------------------------------------------------------------
+# Lifespan Context Manager (Replaces deprecated startup handlers)
+# ---------------------------------------------------------------------------
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global main_loop
+    main_loop = asyncio.get_running_loop()
+    ensure_log_table()
+    threading.Thread(target=video_worker, daemon=True).start()
+    asyncio.create_task(vitals_loop())
+    yield
+
+
+app = FastAPI(title="ULTRON Clinical Dashboard", lifespan=lifespan)
+
+# ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------
 
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
+    # Timeout added to handle concurrent access across background threads
+    conn = sqlite3.connect(DB_PATH, timeout=10.0)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -108,14 +127,25 @@ def ensure_log_table():
         conn.close()
 
 
-def log_event(bed_id: Optional[int], patient_name: Optional[str], alert_type: str, message: str):
+def log_event(
+    bed_id: Optional[int],
+    patient_name: Optional[str],
+    alert_type: str,
+    message: str,
+):
     """Persist an alert/spike event, then push it to any connected clients."""
     conn = get_db_connection()
     try:
         conn.execute(
             "INSERT INTO alert_log (timestamp, bed_id, patient_name, alert_type, message) "
             "VALUES (?, ?, ?, ?, ?)",
-            (datetime.now().isoformat(timespec="seconds"), bed_id, patient_name, alert_type, message),
+            (
+                datetime.now().isoformat(timespec="seconds"),
+                bed_id,
+                patient_name,
+                alert_type,
+                message,
+            ),
         )
         conn.commit()
     finally:
@@ -148,11 +178,9 @@ def _parse_hr(hr_str: Optional[str]) -> Optional[int]:
     return int(match.group()) if match else None
 
 
-# bed_id -> {"hr": int | None, "status": str} — used to detect spikes/transitions
-# between vitals polls rather than re-alerting on every unchanged poll.
 last_vitals_state: dict = {}
-HR_SPIKE_DELTA = 15      # bpm change between polls that counts as a spike
-HR_TACHYCARDIA = 110     # bpm considered high regardless of prior reading
+HR_SPIKE_DELTA = 15
+HR_TACHYCARDIA = 110
 
 
 def _check_vitals_for_alerts(patients: list):
@@ -166,18 +194,26 @@ def _check_vitals_for_alerts(patients: list):
         if hr is not None:
             if prev_hr is not None and abs(hr - prev_hr) >= HR_SPIKE_DELTA:
                 log_event(
-                    bed_id, p["patient_name"], "hr_spike",
+                    bed_id,
+                    p["patient_name"],
+                    "hr_spike",
                     f"Bed {bed_id} HR changed {prev_hr} \u2192 {hr} bpm",
                 )
-            elif hr >= HR_TACHYCARDIA and (prev_hr is None or prev_hr < HR_TACHYCARDIA):
+            elif hr >= HR_TACHYCARDIA and (
+                prev_hr is None or prev_hr < HR_TACHYCARDIA
+            ):
                 log_event(
-                    bed_id, p["patient_name"], "hr_high",
+                    bed_id,
+                    p["patient_name"],
+                    "hr_high",
                     f"Bed {bed_id} HR at {hr} bpm (above {HR_TACHYCARDIA} bpm threshold)",
                 )
 
         if p["status"] == "critical" and prev_status != "critical":
             log_event(
-                bed_id, p["patient_name"], "status_critical",
+                bed_id,
+                p["patient_name"],
+                "status_critical",
                 f"Bed {bed_id} status changed to critical (BP {p['bp']})",
             )
 
@@ -185,7 +221,7 @@ def _check_vitals_for_alerts(patients: list):
 
 
 # ---------------------------------------------------------------------------
-# Vitals polling loop (replaces root.after(5000, fetch_database_data))
+# Vitals polling loop
 # ---------------------------------------------------------------------------
 
 
@@ -204,13 +240,14 @@ async def vitals_loop():
                 }
             )
         except Exception as err:
-            await manager.broadcast({"type": "log", "message": f"[DB Error]: {err}"})
+            await manager.broadcast(
+                {"type": "log", "message": f"[DB Error]: {err}"}
+            )
         await asyncio.sleep(5)
 
 
 # ---------------------------------------------------------------------------
-# Video + fall detection worker (replaces update_video, runs in its own thread
-# since cv2 capture is blocking)
+# Video + Fall Detection Worker
 # ---------------------------------------------------------------------------
 
 
@@ -230,6 +267,11 @@ def video_worker():
 
             if fall_now and not state["fall_detected"]:
                 state["fall_detected"] = True
+
+                # 1. Trigger verbal offline warning
+                voice_engine.speak("Warning. Patient distress detected.")
+
+                # 2. Broadcast and log alert
                 broadcast_threadsafe(
                     {
                         "type": "alert",
@@ -237,21 +279,28 @@ def video_worker():
                         "message": "ALERT: PATIENT DISTRESS DETECTED!",
                     }
                 )
-                log_event(None, "Camera feed", "fall", "Patient distress detected on camera")
+                log_event(
+                    None,
+                    "Camera feed",
+                    "fall",
+                    "Patient distress detected on camera",
+                )
 
-            ok, buf = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            ok, buf = cv2.imencode(
+                ".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 70]
+            )
             if ok:
                 b64 = base64.b64encode(buf).decode("utf-8")
                 broadcast_threadsafe({"type": "video", "frame": b64})
 
-            time.sleep(0.03)  # ~30fps cap, matches the old root.after(30, ...)
+            time.sleep(0.03)
     finally:
         cap.release()
         detector.close()
 
 
 # ---------------------------------------------------------------------------
-# Voice / AI terminal (unchanged logic from app_ui.py, moved off the UI thread)
+# Voice / AI Worker
 # ---------------------------------------------------------------------------
 
 
@@ -314,31 +363,30 @@ def voice_worker():
         elif any(k in cmd for k in ["date", "today"]):
             response = f"Today is {datetime.now().strftime('%A, %B %d, %Y')}."
         else:
-            broadcast_threadsafe({"type": "log", "message": "OpenRouter AI thinking..."})
+            broadcast_threadsafe(
+                {"type": "log", "message": "OpenRouter AI thinking..."}
+            )
             response = query_ai(cmd)
 
+        # 1. Output to UI terminal
         broadcast_threadsafe({"type": "log", "message": f"ULTRON: {response}"})
-        voice_module.speak(response)
+
+        # 2. Save query, response to DB & trigger speech output
+        log_query(cmd, response)
     else:
         broadcast_threadsafe(
-            {"type": "log", "message": "[Audio Engine]: Speech uncaptured or timed out."}
+            {
+                "type": "log",
+                "message": "[Audio Engine]: Speech uncaptured or timed out.",
+            }
         )
 
     broadcast_threadsafe({"type": "voice_state", "listening": False})
 
 
 # ---------------------------------------------------------------------------
-# FastAPI routes
+# FastAPI Routes
 # ---------------------------------------------------------------------------
-
-
-@app.on_event("startup")
-async def on_startup():
-    global main_loop
-    main_loop = asyncio.get_event_loop()
-    ensure_log_table()
-    threading.Thread(target=video_worker, daemon=True).start()
-    asyncio.create_task(vitals_loop())
 
 
 @app.get("/")
@@ -380,15 +428,15 @@ async def websocket_endpoint(ws: WebSocket):
             {
                 "type": "vitals",
                 "patients": patients,
-                "critical_count": len([p for p in patients if p["status"] == "critical"]),
+                "critical_count": len(
+                    [p for p in patients if p["status"] == "critical"]
+                ),
                 "critical": [p for p in patients if p["status"] == "critical"],
             }
         )
         while True:
-            # Client doesn't need to send anything; this just keeps the
-            # connection open and detects disconnects.
             await ws.receive_text()
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, Exception):
         manager.disconnect(ws)
 
 
