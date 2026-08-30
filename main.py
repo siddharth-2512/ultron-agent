@@ -14,7 +14,7 @@ from cyber import cyber_engine
 import cv2
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
-
+from fastapi.staticfiles import StaticFiles
 import voice_module
 from vision_module import FallDetector
 from voice_module import log_query, voice_engine
@@ -25,6 +25,9 @@ DB_PATH = "hospital.db"
 # WebSocket connection manager
 # ---------------------------------------------------------------------------
 
+app = FastAPI()
+# Mount the static folder so /static/logo.png works
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 class ConnectionManager:
 

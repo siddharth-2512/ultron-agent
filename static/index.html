@@ -6,7 +6,6 @@
     <title>ULTRON — Unified Clinical & Cyber Dashboard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* CSS Variables for Dynamic Theme Switching */
         :root[data-theme="dark"] {
             --bg-base: #0b0f19;
             --bg-card: #1e293b;
@@ -20,6 +19,8 @@
             --terminal-bg: #000000;
             --terminal-text: #22c55e;
             --vital-bg: #0f172a;
+            --logo-blend-mode: lighten;
+            --logo-filter: drop-shadow(0px 0px 10px rgba(56, 189, 248, 0.4));
         }
 
         :root[data-theme="light"] {
@@ -35,48 +36,66 @@
             --terminal-bg: #0f172a;
             --terminal-text: #38bdf8;
             --vital-bg: #ffffff;
+            --logo-blend-mode: multiply;
+            --logo-filter: none;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease; }
+        * { box-sizing: border-box; margin: 0; padding: 0; transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, filter 0.25s ease; }
         body { background-color: var(--bg-base); color: var(--text-main); font-family: system-ui, -apple-system, sans-serif; height: 100vh; width: 100vw; overflow: hidden; }
 
-        /* Views Control */
+        .hs-logo-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 15px;
+        }
+
+        .hs-logo-img {
+            width: 140px;
+            height: auto;
+            mix-blend-mode: var(--logo-blend-mode);
+            filter: var(--logo-filter);
+            border-radius: 12px;
+        }
+
+        .dash-logo-img {
+            width: 44px;
+            height: auto;
+            mix-blend-mode: var(--logo-blend-mode);
+            filter: var(--logo-filter);
+            border-radius: 6px;
+        }
+
         .view-section { width: 100%; height: 100%; position: absolute; inset: 0; }
-        #homescreen-view { display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 40px 20px; z-index: 10; }
+        #homescreen-view { display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 30px 20px; z-index: 10; }
         #app-view { display: none; flex-direction: column; padding: 16px; gap: 16px; z-index: 5; }
 
-        /* Homescreen Header & Clock */
-        .hs-header { text-align: center; margin-top: 20px; }
-        .hs-time { font-size: 3.5rem; font-weight: 200; letter-spacing: 2px; }
-        .hs-date { font-size: 1.1rem; color: var(--text-muted); margin-top: 5px; }
+        .hs-header { text-align: center; display: flex; flex-direction: column; align-items: center; }
+        .hs-time { font-size: 3.8rem; font-weight: 200; letter-spacing: 2px; line-height: 1; }
+        .hs-date { font-size: 1.1rem; color: var(--text-muted); margin-top: 8px; }
 
-        /* Homescreen App Grid */
-        .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; max-width: 400px; width: 100%; margin: auto 0; }
+        .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 400px; width: 100%; margin: auto 0; }
         .app-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-decoration: none; color: var(--text-main); transition: transform 0.2s ease; }
         .app-item:hover { transform: translateY(-5px); }
-        .app-icon { width: 70px; height: 70px; border-radius: 18px; display: flex; justify-content: center; align-items: center; font-size: 2rem; box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4); background: linear-gradient(135deg, var(--bg-card), var(--border-color)); border: 1px solid var(--border-color); margin-bottom: 8px; }
+        .app-icon { width: 68px; height: 68px; border-radius: 18px; display: flex; justify-content: center; align-items: center; font-size: 1.8rem; box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4); background: linear-gradient(135deg, var(--bg-card), var(--border-color)); border: 1px solid var(--border-color); margin-bottom: 8px; }
         .app-item.primary .app-icon { background: linear-gradient(135deg, var(--accent-blue), #1d4ed8); box-shadow: 0 10px 25px rgba(37, 99, 235, 0.4); }
         .app-label { font-size: 0.85rem; color: var(--text-muted); text-align: center; }
 
-        /* Homescreen Launch Button */
-        .launch-btn { background: var(--accent-blue); color: #ffffff; border: none; padding: 16px 36px; border-radius: 30px; font-size: 1rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3); transition: all 0.2s ease; margin-bottom: 20px; }
+        .launch-btn { background: var(--accent-blue); color: #ffffff; border: none; padding: 16px 36px; border-radius: 30px; font-size: 1rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3); transition: all 0.2s ease; margin-bottom: 10px; }
         .launch-btn:hover { background: #1d4ed8; box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5); }
 
-        /* Launch Overlay Animation */
         .launch-overlay { position: fixed; inset: 0; background-color: var(--bg-base); opacity: 0; pointer-events: none; transition: opacity 0.4s ease; display: flex; justify-content: center; align-items: center; z-index: 100; }
         .launch-overlay.active { opacity: 1; pointer-events: all; }
         .spinner { width: 40px; height: 40px; border: 4px solid var(--border-color); border-top-color: var(--accent-blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
 
-        /* Dashboard Header Styling */
         header { background: var(--bg-card); padding: 12px 24px; border-radius: 12px; border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        .header-title { font-size: 20px; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 10px; }
+        .header-title { font-size: 20px; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 12px; }
         .badge-ward { font-size: 11px; background: #1e3a8a; color: #60a5fa; padding: 2px 8px; border-radius: 12px; border: 1px solid #3b82f6; }
         .badge-live { font-size: 12px; font-weight: 600; color: #34d399; background: #064e3b; padding: 6px 12px; border-radius: 20px; border: 1px solid #059669; display: flex; align-items: center; gap: 6px; }
         .pulse-dot { width: 10px; height: 10px; background: #10b981; border-radius: 50%; box-shadow: 0 0 8px #10b981; animation: pulse 1.5s infinite; }
         
         @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
 
-        /* Nav Tab Switcher & Buttons */
         .nav-group { display: flex; gap: 8px; background: var(--bg-panel); padding: 4px; border-radius: 10px; border: 1px solid var(--border-color); }
         .nav-btn { background: transparent; color: var(--text-muted); border: none; padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
         .nav-btn:hover { color: var(--text-main); }
@@ -92,7 +111,6 @@
         .btn-ack { background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
         .btn-ack:hover { background: #b91c1c; transform: translateY(-1px); }
         
-        /* Dashboard Main Layout Grid */
         main { display: grid; grid-template-columns: 5fr 7fr; gap: 16px; flex: 1; min-height: 0; }
         .left-col { display: flex; flex-direction: column; gap: 16px; }
         .right-col { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; overflow-y: auto; }
@@ -113,7 +131,6 @@
         
         #logs { flex: 1; background: var(--terminal-bg); color: var(--terminal-text); border-radius: 8px; padding: 12px; font-family: 'Courier New', monospace; font-size: 12px; overflow-y: auto; max-height: 180px; display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border-color); }
         
-        /* Patient Cards */
         .patient-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
         .vital-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; }
         .vital-card.critical { border-color: #ef4444; background: rgba(239, 68, 68, 0.1); }
@@ -129,14 +146,12 @@
         .status-critical { background: #881337; color: #fda4af; }
         .status-warning { background: #78350f; color: #fde68a; }
 
-        /* Cybersecurity View Layout */
         #cyber-view { display: none; flex: 1; flex-direction: column; gap: 16px; background: var(--bg-inner); color: var(--text-main); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); overflow-y: auto; }
         
         .cyber-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
         .cyber-card { background: var(--bg-panel); border: 1px solid var(--border-color); padding: 16px; border-radius: 10px; }
         .cyber-metric-value { font-size: 28px; font-weight: 800; margin-top: 8px; font-family: monospace; }
         
-        /* Interactive Radar Box */
         .radar-box { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .radar-sweep { width: 100px; height: 100px; border-radius: 50%; border: 2px solid var(--accent-blue); position: relative; background: radial-gradient(circle, rgba(56,189,248,0.1) 0%, rgba(0,0,0,0) 70%); }
         .radar-sweep::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; border-top: 2px solid var(--accent-purple); animation: spin 2s linear infinite; }
@@ -146,7 +161,6 @@
         .btn-scan { background: linear-gradient(135deg, var(--accent-purple), #4c1d95); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4); }
         .btn-scan:hover { transform: translateY(-1px); }
 
-        /* Threat Matrix Table & Port Monitors */
         .cyber-sections-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
         
         .threat-table-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; }
@@ -166,8 +180,14 @@
     <!-- HOMESCREEN LAUNCHER VIEW -->
     <section id="homescreen-view" class="view-section">
         <div class="hs-header">
+            <!-- Digital Clock and Date -->
             <div class="hs-time" id="clock">12:00</div>
             <div class="hs-date" id="date">Loading date...</div>
+
+            <!-- Custom Medical Clinic Logo -->
+            <div class="hs-logo-container">
+                <img src="/static/logo.png" alt="ULTRON Logo" class="hs-logo-img">
+            </div>
         </div>
 
         <div class="app-grid">
@@ -206,7 +226,7 @@
     <section id="app-view" class="view-section">
         <header>
             <div class="header-title">
-                <i class="fa-solid fa-heart-pulse" style="color: var(--accent-blue);"></i>
+                <img src="/static/logo.png" alt="ULTRON Logo" class="dash-logo-img">
                 <div>
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span style="font-size: 20px; font-weight: 800; letter-spacing: 0.05em;">ULTRON</span>
@@ -218,7 +238,6 @@
                 </div>
             </div>
 
-            <!-- Navigation Tabs, Home Button & Theme Toggle -->
             <div style="display: flex; gap: 12px; align-items: center;">
                 <button class="btn-home" onclick="returnToHomescreen()">
                     <i class="fa-solid fa-house"></i> Home
@@ -245,7 +264,6 @@
             </div>
         </header>
 
-        <!-- Clinical Dashboard View -->
         <main id="clinical-view">
             <section class="left-col">
                 <div class="card">
@@ -284,7 +302,6 @@
             </section>
         </main>
 
-        <!-- Cybersecurity Threat Center View -->
         <div id="cyber-view">
             <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-panel); padding: 16px; border-radius: 10px; border: 1px solid var(--border-color);">
                 <div>
@@ -320,7 +337,6 @@
                 </div>
             </div>
 
-            <!-- Threat Matrix Table & Port Monitors -->
             <div class="cyber-sections-grid">
                 <div class="threat-table-card">
                     <div style="font-size: 12px; font-weight: bold; text-transform: uppercase; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
@@ -357,7 +373,6 @@
                 </div>
             </div>
 
-            <!-- Network Console -->
             <div>
                 <div style="font-size: 11px; color: var(--text-muted); font-weight: bold; text-transform: uppercase; margin-bottom: 6px;">Network Activity Log</div>
                 <div id="cyber-console">
@@ -367,16 +382,13 @@
         </div>
     </section>
 
-    <!-- Transition Overlay Screen -->
     <div class="launch-overlay" id="overlay">
         <div class="spinner"></div>
     </div>
 
     <script>
-        // WebSocket Connection
         const ws = new WebSocket(`ws://${location.host}/ws`);
 
-        // Homescreen Clock and Date Update
         function updateTime() {
             const now = new Date();
             document.getElementById('clock').textContent = now.toLocaleTimeString([], {
@@ -393,7 +405,6 @@
         setInterval(updateTime, 1000);
         updateTime();
 
-        // Application Launch Transition Function
         function launchApp(targetView = 'clinical') {
             const overlay = document.getElementById('overlay');
             overlay.classList.add('active');
@@ -406,7 +417,6 @@
             }, 400);
         }
 
-        // Return to Launcher Screen
         function returnToHomescreen() {
             const overlay = document.getElementById('overlay');
             overlay.classList.add('active');
@@ -418,7 +428,6 @@
             }, 300);
         }
 
-        // Theme Toggle Logic
         function toggleTheme() {
             const htmlEl = document.documentElement;
             const currentTheme = htmlEl.getAttribute('data-theme');
@@ -431,7 +440,6 @@
             document.getElementById('theme-text').innerText = newTheme === 'dark' ? 'Dark' : 'Light';
         }
 
-        // Restore Saved Theme Preference
         (function initTheme() {
             const savedTheme = localStorage.getItem('ultron-theme') || 'dark';
             document.documentElement.setAttribute('data-theme', savedTheme);
@@ -439,7 +447,6 @@
             document.getElementById('theme-text').innerText = savedTheme === 'dark' ? 'Dark' : 'Light';
         })();
 
-        // WebSocket Event Listener
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.type === "video") {
@@ -463,7 +470,6 @@
             }
         };
 
-        // Navigation Switcher within App View
         function switchView(view) {
             const clinicalView = document.getElementById("clinical-view");
             const cyberView = document.getElementById("cyber-view");
