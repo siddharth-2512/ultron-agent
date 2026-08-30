@@ -1,163 +1,445 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ULTRON — Ward 4B Clinical Dashboard</title>
+    <title>ULTRON — Unified Clinical & Cyber Dashboard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background-color: #f1f5f9; color: #0f172a; font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; padding: 16px; gap: 16px; overflow: hidden; }
-        header { background: #ffffff; padding: 12px 24px; border-radius: 12px; border: 1px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .header-title { font-size: 20px; font-weight: bold; color: #0f172a; display: flex; align-items: center; gap: 8px; }
-        .badge-ward { font-size: 11px; background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 12px; border: 1px solid #bfdbfe; }
-        .badge-live { font-size: 12px; font-weight: 600; color: #047857; background: #ecfdf5; padding: 6px 12px; border-radius: 20px; border: 1px solid #a7f3d0; display: flex; align-items: center; gap: 6px; }
-        .pulse-dot { width: 10px; height: 10px; background: #10b981; border-radius: 50%; }
-        .btn-ack { background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-        .btn-ack:hover { background: #b91c1c; }
+        /* CSS Variables for Dynamic Theme Switching */
+        :root[data-theme="dark"] {
+            --bg-base: #0b0f19;
+            --bg-card: #1e293b;
+            --bg-panel: #0f172a;
+            --bg-inner: #020617;
+            --border-color: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-purple: #7c3aed;
+            --terminal-bg: #000000;
+            --terminal-text: #22c55e;
+            --vital-bg: #0f172a;
+        }
+
+        :root[data-theme="light"] {
+            --bg-base: #f1f5f9;
+            --bg-card: #ffffff;
+            --bg-panel: #e2e8f0;
+            --bg-inner: #f8fafc;
+            --border-color: #cbd5e1;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --accent-blue: #2563eb;
+            --accent-purple: #6d28d9;
+            --terminal-bg: #0f172a;
+            --terminal-text: #38bdf8;
+            --vital-bg: #ffffff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease; }
+        body { background-color: var(--bg-base); color: var(--text-main); font-family: system-ui, -apple-system, sans-serif; height: 100vh; width: 100vw; overflow: hidden; }
+
+        /* Views Control */
+        .view-section { width: 100%; height: 100%; position: absolute; inset: 0; }
+        #homescreen-view { display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 40px 20px; z-index: 10; }
+        #app-view { display: none; flex-direction: column; padding: 16px; gap: 16px; z-index: 5; }
+
+        /* Homescreen Header & Clock */
+        .hs-header { text-align: center; margin-top: 20px; }
+        .hs-time { font-size: 3.5rem; font-weight: 200; letter-spacing: 2px; }
+        .hs-date { font-size: 1.1rem; color: var(--text-muted); margin-top: 5px; }
+
+        /* Homescreen App Grid */
+        .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; max-width: 400px; width: 100%; margin: auto 0; }
+        .app-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-decoration: none; color: var(--text-main); transition: transform 0.2s ease; }
+        .app-item:hover { transform: translateY(-5px); }
+        .app-icon { width: 70px; height: 70px; border-radius: 18px; display: flex; justify-content: center; align-items: center; font-size: 2rem; box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4); background: linear-gradient(135deg, var(--bg-card), var(--border-color)); border: 1px solid var(--border-color); margin-bottom: 8px; }
+        .app-item.primary .app-icon { background: linear-gradient(135deg, var(--accent-blue), #1d4ed8); box-shadow: 0 10px 25px rgba(37, 99, 235, 0.4); }
+        .app-label { font-size: 0.85rem; color: var(--text-muted); text-align: center; }
+
+        /* Homescreen Launch Button */
+        .launch-btn { background: var(--accent-blue); color: #ffffff; border: none; padding: 16px 36px; border-radius: 30px; font-size: 1rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3); transition: all 0.2s ease; margin-bottom: 20px; }
+        .launch-btn:hover { background: #1d4ed8; box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5); }
+
+        /* Launch Overlay Animation */
+        .launch-overlay { position: fixed; inset: 0; background-color: var(--bg-base); opacity: 0; pointer-events: none; transition: opacity 0.4s ease; display: flex; justify-content: center; align-items: center; z-index: 100; }
+        .launch-overlay.active { opacity: 1; pointer-events: all; }
+        .spinner { width: 40px; height: 40px; border: 4px solid var(--border-color); border-top-color: var(--accent-blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
+
+        /* Dashboard Header Styling */
+        header { background: var(--bg-card); padding: 12px 24px; border-radius: 12px; border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .header-title { font-size: 20px; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 10px; }
+        .badge-ward { font-size: 11px; background: #1e3a8a; color: #60a5fa; padding: 2px 8px; border-radius: 12px; border: 1px solid #3b82f6; }
+        .badge-live { font-size: 12px; font-weight: 600; color: #34d399; background: #064e3b; padding: 6px 12px; border-radius: 20px; border: 1px solid #059669; display: flex; align-items: center; gap: 6px; }
+        .pulse-dot { width: 10px; height: 10px; background: #10b981; border-radius: 50%; box-shadow: 0 0 8px #10b981; animation: pulse 1.5s infinite; }
         
+        @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+
+        /* Nav Tab Switcher & Buttons */
+        .nav-group { display: flex; gap: 8px; background: var(--bg-panel); padding: 4px; border-radius: 10px; border: 1px solid var(--border-color); }
+        .nav-btn { background: transparent; color: var(--text-muted); border: none; padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .nav-btn:hover { color: var(--text-main); }
+        .nav-btn.active { background: var(--accent-blue); color: #ffffff; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4); }
+        .nav-btn-cyber.active { background: var(--accent-purple); color: #ffffff; box-shadow: 0 2px 8px rgba(124, 58, 237, 0.4); }
+
+        .btn-home { background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .btn-home:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+
+        .theme-toggle-btn { background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .theme-toggle-btn:hover { border-color: var(--accent-blue); }
+
+        .btn-ack { background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .btn-ack:hover { background: #b91c1c; transform: translateY(-1px); }
+        
+        /* Dashboard Main Layout Grid */
         main { display: grid; grid-template-columns: 5fr 7fr; gap: 16px; flex: 1; min-height: 0; }
         .left-col { display: flex; flex-direction: column; gap: 16px; }
-        .right-col { background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px; overflow-y: auto; }
+        .right-col { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; overflow-y: auto; }
         
-        .card { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .video-container { position: relative; width: 100%; aspect-ratio: 16/9; background: #020617; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .video-container { position: relative; width: 100%; aspect-ratio: 16/9; background: #020617; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-color); }
         #videoStream { width: 100%; height: 100%; object-fit: cover; }
         
-        /* Flashing Translucent Red Overlay */
-        .fall-overlay {
-            display: none;
-            position: absolute;
-            inset: 0;
-            background: rgba(225, 29, 72, 0.45);
-            border: 4px solid #dc2626;
-            z-index: 10;
-            animation: flashOverlay 1s infinite alternate ease-in-out;
-            align-items: center;
-            justify-content: center;
-        }
+        .fall-overlay { display: none; position: absolute; inset: 0; background: rgba(225, 29, 72, 0.45); border: 4px solid #dc2626; z-index: 10; animation: flashOverlay 1s infinite alternate ease-in-out; align-items: center; justify-content: center; }
         .fall-overlay.active { display: flex; }
-        .alert-banner {
-            background: #dc2626;
-            color: #ffffff;
-            font-size: 14px;
-            font-weight: 800;
-            letter-spacing: 0.05em;
-            padding: 10px 20px;
-            border-radius: 8px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        .alert-banner { background: #dc2626; color: #ffffff; font-size: 14px; font-weight: 800; letter-spacing: 0.05em; padding: 10px 20px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 10px; }
 
-        @keyframes flashOverlay {
-            from { opacity: 0.3; }
-            to { opacity: 0.95; }
-        }
+        @keyframes flashOverlay { from { opacity: 0.3; } to { opacity: 0.95; } }
 
-        .terminal-card { 
-          flex: 1; 
-          display: flex; 
-          flex-direction: column; 
-          min-height: 0; /* Prevents flex items from expanding beyond parent */
-        }
-        .terminal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-weight: bold; font-size: 12px; color: #334155; text-transform: uppercase; }
-        .btn-voice { background: #2563eb; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
-        #logs { 
-          flex: 1; 
-          background: #0f172a; 
-          color: #e2e8f0; 
-          border-radius: 8px; 
-          padding: 12px; 
-          font-family: monospace; 
-          font-size: 12px; 
-          overflow-y: auto; /* Enables scrolling */
-          max-height: 180px; /* Forces fixed bounds so scrollbar appears */
-          display: flex; 
-          flex-direction: column; 
-          gap: 8px; 
-        }
+        .terminal-card { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+        .terminal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-weight: bold; font-size: 12px; color: var(--text-muted); text-transform: uppercase; }
+        .btn-voice { background: var(--accent-blue); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
         
+        #logs { flex: 1; background: var(--terminal-bg); color: var(--terminal-text); border-radius: 8px; padding: 12px; font-family: 'Courier New', monospace; font-size: 12px; overflow-y: auto; max-height: 180px; display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border-color); }
+        
+        /* Patient Cards */
         .patient-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
-        .vital-card { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px; }
-        .vital-card.critical { border-color: #ef4444; background: #fef2f2; }
-        .vital-card.warning { border-color: #f59e0b; background: #fffbeb; }
+        .vital-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; }
+        .vital-card.critical { border-color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+        .vital-card.warning { border-color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
         
         .vital-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
-        .metric-box { background: #eff6ff; border: 1px solid #dbeafe; padding: 10px; border-radius: 8px; }
-        .metric-label { font-size: 11px; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 8px; }
-        .metric-value { font-size: 16px; font-weight: bold; color: #0f172a; margin-top: 4px; display: block; }
+        .metric-box { background: var(--vital-bg); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; }
+        .metric-label { font-size: 11px; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+        .metric-value { font-size: 16px; font-weight: bold; color: var(--text-main); margin-top: 4px; display: block; }
         
-        .icon-large { font-size: 20px; }
         .status-pill { font-size: 10px; font-weight: bold; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; }
-        .status-normal { background: #d1fae5; color: #065f46; }
-        .status-critical { background: #ffe4e6; color: #9f1239; }
-        .status-warning { background: #fef3c7; color: #92400e; }
+        .status-normal { background: #064e3b; color: #34d399; }
+        .status-critical { background: #881337; color: #fda4af; }
+        .status-warning { background: #78350f; color: #fde68a; }
+
+        /* Cybersecurity View Layout */
+        #cyber-view { display: none; flex: 1; flex-direction: column; gap: 16px; background: var(--bg-inner); color: var(--text-main); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); overflow-y: auto; }
+        
+        .cyber-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+        .cyber-card { background: var(--bg-panel); border: 1px solid var(--border-color); padding: 16px; border-radius: 10px; }
+        .cyber-metric-value { font-size: 28px; font-weight: 800; margin-top: 8px; font-family: monospace; }
+        
+        /* Interactive Radar Box */
+        .radar-box { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .radar-sweep { width: 100px; height: 100px; border-radius: 50%; border: 2px solid var(--accent-blue); position: relative; background: radial-gradient(circle, rgba(56,189,248,0.1) 0%, rgba(0,0,0,0) 70%); }
+        .radar-sweep::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; border-top: 2px solid var(--accent-purple); animation: spin 2s linear infinite; }
+        
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .btn-scan { background: linear-gradient(135deg, var(--accent-purple), #4c1d95); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4); }
+        .btn-scan:hover { transform: translateY(-1px); }
+
+        /* Threat Matrix Table & Port Monitors */
+        .cyber-sections-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+        
+        .threat-table-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; }
+        .threat-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+        .threat-table th { text-align: left; color: var(--text-muted); border-bottom: 1px solid var(--border-color); padding: 8px; text-transform: uppercase; font-size: 10px; }
+        .threat-table td { padding: 8px; border-bottom: 1px solid var(--border-color); font-family: monospace; }
+
+        .port-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .port-card { background: var(--bg-card); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+        .port-badge { font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; background: #064e3b; color: #34d399; }
+
+        #cyber-console { background: var(--terminal-bg); color: var(--terminal-text); border-radius: 8px; padding: 12px; font-family: 'Courier New', monospace; font-size: 12px; height: 110px; overflow-y: auto; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 4px; }
     </style>
 </head>
 <body>
 
-    <header>
-    <div class="header-title">
-        <i class="fa-solid fa-heart-pulse icon-large" style="color: #2563eb;"></i>
-        <div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 20px; font-weight: 800; tracking-wide: 0.05em;">ULTRON</span>
-                <span class="badge-ward">WARD 4B</span>
+    <!-- HOMESCREEN LAUNCHER VIEW -->
+    <section id="homescreen-view" class="view-section">
+        <div class="hs-header">
+            <div class="hs-time" id="clock">12:00</div>
+            <div class="hs-date" id="date">Loading date...</div>
+        </div>
+
+        <div class="app-grid">
+            <div class="app-item primary" onclick="launchApp('clinical')">
+                <div class="app-icon"><i class="fa-solid fa-heart-pulse" style="color: #60a5fa;"></i></div>
+                <span class="app-label">Dashboard</span>
             </div>
-            <div style="font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
-                Unified Life-Tracking & Threat Response Observability Network
+            <div class="app-item" onclick="launchApp('clinical')">
+                <div class="app-icon"><i class="fa-solid fa-bed" style="color: #38bdf8;"></i></div>
+                <span class="app-label">Vitals</span>
+            </div>
+            <div class="app-item" onclick="launchApp('cyber')">
+                <div class="app-icon"><i class="fa-solid fa-shield-halved" style="color: #c084fc;"></i></div>
+                <span class="app-label">Security</span>
+            </div>
+            <div class="app-item" onclick="launchApp('clinical')">
+                <div class="app-icon"><i class="fa-solid fa-video" style="color: #f43f5e;"></i></div>
+                <span class="app-label">Vision</span>
+            </div>
+            <div class="app-item" onclick="launchApp('clinical')">
+                <div class="app-icon"><i class="fa-solid fa-microphone" style="color: #fbbf24;"></i></div>
+                <span class="app-label">Assistant</span>
+            </div>
+            <div class="app-item" onclick="toggleTheme()">
+                <div class="app-icon"><i class="fa-solid fa-gear" style="color: #94a3b8;"></i></div>
+                <span class="app-label">Settings</span>
             </div>
         </div>
-    </div>
-    <div style="display: flex; gap: 16px; align-items: center;">
-        <div class="badge-live"><div class="pulse-dot"></div> LIVE MONITORING</div>
-        <button class="btn-ack" onclick="acknowledgeAlert()"><i class="fa-solid fa-bell-slash icon-large"></i> ACKNOWLEDGE ALERTS</button>
-    </div>
-</header>
 
-    <main>
-        <section class="left-col">
-            <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span style="font-size: 12px; font-weight: bold; color: #334155; display: flex; align-items: center; gap: 8px;">
-                        <i class="fa-solid fa-video icon-large" style="color: #2563eb;"></i> BED 3 CAM FEED
-                    </span>
-                    <span style="font-size: 10px; background: #eff6ff; color: #1d4ed8; padding: 2px 6px; font-weight: bold; border-radius: 4px;">1080P • 30 FPS</span>
-                </div>
-                <div class="video-container">
-                    <img id="videoStream" src="" alt="Connecting Camera Stream...">
-                    <div id="videoOverlay" class="fall-overlay">
-                        <div class="alert-banner">
-                            <i class="fa-solid fa-triangle-exclamation icon-large"></i> ATTENTION REQUIRED
-                        </div>
+        <button class="launch-btn" onclick="launchApp('clinical')">
+            Launch Clinical Dashboard
+        </button>
+    </section>
+
+    <!-- MAIN ULTRON DASHBOARD APP VIEW -->
+    <section id="app-view" class="view-section">
+        <header>
+            <div class="header-title">
+                <i class="fa-solid fa-heart-pulse" style="color: var(--accent-blue);"></i>
+                <div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 20px; font-weight: 800; letter-spacing: 0.05em;">ULTRON</span>
+                        <span class="badge-ward">WARD 4B</span>
+                    </div>
+                    <div style="font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
+                        Unified Life-Tracking & Threat Response Observability Network
                     </div>
                 </div>
             </div>
 
-            <div class="card terminal-card">
-                <div class="terminal-header">
-                    <span><i class="fa-solid fa-terminal icon-large" style="color: #2563eb; margin-right: 6px;"></i> Clinical Logs & Assistant</span>
-                    <button class="btn-voice" onclick="triggerVoice()"><i class="fa-solid fa-microphone icon-large"></i> Speak Command</button>
+            <!-- Navigation Tabs, Home Button & Theme Toggle -->
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <button class="btn-home" onclick="returnToHomescreen()">
+                    <i class="fa-solid fa-house"></i> Home
+                </button>
+
+                <div class="nav-group">
+                    <button id="btn-nav-clinical" class="nav-btn active" onclick="switchView('clinical')">
+                        <i class="fa-solid fa-bed"></i> Clinical Vitals
+                    </button>
+                    <button id="btn-nav-cyber" class="nav-btn nav-btn-cyber" onclick="switchView('cyber')">
+                        <i class="fa-solid fa-shield-halved"></i> Security Center
+                    </button>
                 </div>
-                <div id="logs">
-                    <div style="color: #94a3b8;">[SYSTEM] System online. Dashboard initialized...</div>
+
+                <button class="theme-toggle-btn" onclick="toggleTheme()">
+                    <i id="theme-icon" class="fa-solid fa-moon"></i>
+                    <span id="theme-text">Dark</span>
+                </button>
+            </div>
+
+            <div style="display: flex; gap: 16px; align-items: center;">
+                <div class="badge-live"><div class="pulse-dot"></div> LIVE MONITORING</div>
+                <button class="btn-ack" onclick="acknowledgeAlert()"><i class="fa-solid fa-bell-slash"></i> ACKNOWLEDGE ALERTS</button>
+            </div>
+        </header>
+
+        <!-- Clinical Dashboard View -->
+        <main id="clinical-view">
+            <section class="left-col">
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 12px; font-weight: bold; color: var(--text-muted); display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-video" style="color: var(--accent-blue);"></i> BED 3 CAM FEED
+                        </span>
+                        <span style="font-size: 10px; background: #1e3a8a; color: #60a5fa; padding: 2px 6px; font-weight: bold; border-radius: 4px;">1080P • 30 FPS</span>
+                    </div>
+                    <div class="video-container">
+                        <img id="videoStream" src="" alt="Connecting Camera Stream...">
+                        <div id="videoOverlay" class="fall-overlay">
+                            <div class="alert-banner">
+                                <i class="fa-solid fa-triangle-exclamation"></i> ATTENTION REQUIRED
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card terminal-card">
+                    <div class="terminal-header">
+                        <span><i class="fa-solid fa-terminal" style="color: var(--accent-blue); margin-right: 6px;"></i> Clinical Logs & Assistant</span>
+                        <button class="btn-voice" onclick="triggerVoice()"><i class="fa-solid fa-microphone"></i> Speak Command</button>
+                    </div>
+                    <div id="logs">
+                        <div style="color: var(--text-muted);">[SYSTEM] System online. Dashboard initialized...</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="right-col">
+                <h2 style="font-size: 12px; font-weight: bold; color: var(--text-muted); text-transform: uppercase; display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-bed" style="color: var(--accent-blue);"></i> Ward Patient Stations
+                </h2>
+                <div id="patientGrid" class="patient-grid"></div>
+            </section>
+        </main>
+
+        <!-- Cybersecurity Threat Center View -->
+        <div id="cyber-view">
+            <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-panel); padding: 16px; border-radius: 10px; border: 1px solid var(--border-color);">
+                <div>
+                    <h2 style="font-size: 20px; font-weight: 800; display: flex; align-items: center; gap: 10px;">
+                        <i class="fa-solid fa-shield-cat" style="color: var(--accent-purple);"></i> Threat & Packet Inspection Engine
+                    </h2>
+                    <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Isolation Forest ML Anomaly Detection • Active Port Monitoring</p>
+                </div>
+                <button class="btn-scan" onclick="triggerCyberScan()">
+                    <i class="fa-solid fa-radar"></i> RUN NETWORK SCAN
+                </button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 3fr 1fr; gap: 16px;">
+                <div class="cyber-grid">
+                    <div class="cyber-card">
+                        <div style="font-size: 11px; color: var(--text-muted); font-weight: bold; text-transform: uppercase;">System Status</div>
+                        <div id="cyber-status" class="cyber-metric-value" style="color: #34d399; font-size: 18px; margin-top: 14px;">NOMINAL</div>
+                    </div>
+                    <div class="cyber-card">
+                        <div style="font-size: 11px; color: var(--text-muted); font-weight: bold; text-transform: uppercase;">Threat Score</div>
+                        <div id="cyber-score" class="cyber-metric-value" style="color: #38bdf8;">0.00 <span style="font-size: 14px; color: var(--text-muted);">/ 1.00</span></div>
+                    </div>
+                    <div class="cyber-card">
+                        <div style="font-size: 11px; color: var(--text-muted); font-weight: bold; text-transform: uppercase;">Packets Analyzed</div>
+                        <div id="cyber-packets" class="cyber-metric-value" style="color: var(--accent-purple);">0</div>
+                    </div>
+                </div>
+
+                <div class="radar-box">
+                    <div class="radar-sweep"></div>
+                    <div style="font-size: 10px; color: var(--text-muted); font-weight: bold; margin-top: 8px;">ACTIVE RADAR</div>
                 </div>
             </div>
-        </section>
 
-        <section class="right-col">
-            <h2 style="font-size: 12px; font-weight: bold; color: #475569; text-transform: uppercase; display: flex; align-items: center; gap: 8px;">
-                <i class="fa-solid fa-bed icon-large" style="color: #2563eb;"></i> Ward Patient Stations
-            </h2>
-            <div id="patientGrid" class="patient-grid"></div>
-        </section>
-    </main>
+            <!-- Threat Matrix Table & Port Monitors -->
+            <div class="cyber-sections-grid">
+                <div class="threat-table-card">
+                    <div style="font-size: 12px; font-weight: bold; text-transform: uppercase; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fa-solid fa-list-check" style="color: var(--accent-purple); margin-right: 6px;"></i> Inspection Stream</span>
+                        <span style="font-size: 10px; color: #34d399;"><i class="fa-solid fa-circle" style="font-size: 8px;"></i> LIVE FEED</span>
+                    </div>
+                    <table class="threat-table">
+                        <thead>
+                            <tr>
+                                <th>Protocol</th>
+                                <th>Target Vector</th>
+                                <th>Packet Size</th>
+                                <th>Risk Index</th>
+                            </tr>
+                        </thead>
+                        <tbody id="threat-table-body">
+                            <tr><td>HTTPS/TCP</td><td>192.168.1.104:443</td><td>512 Bytes</td><td style="color:#34d399;">LOW (0.04)</td></tr>
+                            <tr><td>HL7/DICOM</td><td>192.168.1.112:8080</td><td>1024 Bytes</td><td style="color:#34d399;">LOW (0.08)</td></tr>
+                            <tr><td>MQTT/Vitals</td><td>10.0.4.12:1883</td><td>128 Bytes</td><td style="color:#34d399;">LOW (0.02)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="threat-table-card">
+                    <div style="font-size: 12px; font-weight: bold; text-transform: uppercase; color: var(--text-muted);">
+                        <i class="fa-solid fa-network-wired" style="color: var(--accent-purple); margin-right: 6px;"></i> Medical IoT Ports
+                    </div>
+                    <div class="port-grid">
+                        <div class="port-card"><span>Port 8000 (API)</span><span class="port-badge">OPEN</span></div>
+                        <div class="port-card"><span>Port 1883 (MQTT)</span><span class="port-badge">OPEN</span></div>
+                        <div class="port-card"><span>Port 554 (RTSP)</span><span class="port-badge">OPEN</span></div>
+                        <div class="port-card"><span>Port 443 (TLS)</span><span class="port-badge">OPEN</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Network Console -->
+            <div>
+                <div style="font-size: 11px; color: var(--text-muted); font-weight: bold; text-transform: uppercase; margin-bottom: 6px;">Network Activity Log</div>
+                <div id="cyber-console">
+                    <div>[CYBER CORE] Isolation Forest Model loaded. System standing by...</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Transition Overlay Screen -->
+    <div class="launch-overlay" id="overlay">
+        <div class="spinner"></div>
+    </div>
 
     <script>
+        // WebSocket Connection
         const ws = new WebSocket(`ws://${location.host}/ws`);
 
+        // Homescreen Clock and Date Update
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('clock').textContent = now.toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+            document.getElementById('date').textContent = now.toLocaleDateString([], {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        // Application Launch Transition Function
+        function launchApp(targetView = 'clinical') {
+            const overlay = document.getElementById('overlay');
+            overlay.classList.add('active');
+
+            setTimeout(() => {
+                document.getElementById('homescreen-view').style.display = 'none';
+                document.getElementById('app-view').style.display = 'flex';
+                switchView(targetView);
+                overlay.classList.remove('active');
+            }, 400);
+        }
+
+        // Return to Launcher Screen
+        function returnToHomescreen() {
+            const overlay = document.getElementById('overlay');
+            overlay.classList.add('active');
+
+            setTimeout(() => {
+                document.getElementById('app-view').style.display = 'none';
+                document.getElementById('homescreen-view').style.display = 'flex';
+                overlay.classList.remove('active');
+            }, 300);
+        }
+
+        // Theme Toggle Logic
+        function toggleTheme() {
+            const htmlEl = document.documentElement;
+            const currentTheme = htmlEl.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            htmlEl.setAttribute('data-theme', newTheme);
+            localStorage.setItem('ultron-theme', newTheme);
+            
+            document.getElementById('theme-icon').className = newTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+            document.getElementById('theme-text').innerText = newTheme === 'dark' ? 'Dark' : 'Light';
+        }
+
+        // Restore Saved Theme Preference
+        (function initTheme() {
+            const savedTheme = localStorage.getItem('ultron-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            document.getElementById('theme-icon').className = savedTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+            document.getElementById('theme-text').innerText = savedTheme === 'dark' ? 'Dark' : 'Light';
+        })();
+
+        // WebSocket Event Listener
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.type === "video") {
@@ -176,34 +458,108 @@
                 if (data.message.includes("[FALL]")) {
                     document.getElementById("videoOverlay").classList.add("active");
                 }
+            } else if (data.type === "cyber_update") {
+                updateCyberUI(data.data);
             }
         };
+
+        // Navigation Switcher within App View
+        function switchView(view) {
+            const clinicalView = document.getElementById("clinical-view");
+            const cyberView = document.getElementById("cyber-view");
+            const btnClinical = document.getElementById("btn-nav-clinical");
+            const btnCyber = document.getElementById("btn-nav-cyber");
+
+            if (view === "cyber") {
+                clinicalView.style.display = "none";
+                cyberView.style.display = "flex";
+                btnClinical.classList.remove("active");
+                btnCyber.classList.add("active");
+            } else {
+                clinicalView.style.display = "grid";
+                cyberView.style.display = "none";
+                btnClinical.classList.add("active");
+                btnCyber.classList.remove("active");
+            }
+        }
+
+        async function triggerCyberScan() {
+            const statusEl = document.getElementById("cyber-status");
+            statusEl.innerText = "SCANNING...";
+            statusEl.style.color = "#f59e0b";
+            
+            appendCyberLog("[SCAN] Sniffing network packets and calculating risk baseline...");
+            
+            try {
+                await fetch('/api/cyber/scan', { method: 'POST' });
+            } catch (err) {
+                statusEl.innerText = "SCAN FAILED";
+                statusEl.style.color = "#ef4444";
+                appendCyberLog("[ERROR] Network scan execution failed.");
+            }
+        }
+
+        function updateCyberUI(data) {
+            const statusEl = document.getElementById("cyber-status");
+            const scoreEl = document.getElementById("cyber-score");
+            const packetsEl = document.getElementById("cyber-packets");
+
+            statusEl.innerText = data.status;
+            statusEl.style.color = data.anomaly_detected ? "#ef4444" : "#34d399";
+            
+            scoreEl.innerHTML = `${data.threat_score} <span style="font-size: 14px; color: var(--text-muted);">/ 1.00</span>`;
+            packetsEl.innerText = data.packets_analyzed;
+
+            const tbody = document.getElementById("threat-table-body");
+            const riskColor = data.anomaly_detected ? "#ef4444" : "#34d399";
+            const riskLabel = data.anomaly_detected ? "CRITICAL" : "LOW";
+            
+            tbody.innerHTML = `
+                <tr><td>UDP/RTSP</td><td>10.0.4.15:554</td><td>${Math.floor(Math.random()*2000 + 400)} Bytes</td><td style="color:${riskColor}">${riskLabel} (${data.threat_score})</td></tr>
+                <tr><td>HTTPS/TCP</td><td>192.168.1.104:443</td><td>512 Bytes</td><td style="color:#34d399;">LOW (0.04)</td></tr>
+                <tr><td>HL7/DICOM</td><td>192.168.1.112:8080</td><td>1024 Bytes</td><td style="color:#34d399;">LOW (0.08)</td></tr>
+            `;
+
+            if (data.anomaly_detected) {
+                appendCyberLog(`[ALERT] Malicious packet pattern detected! Threat Score: ${data.threat_score}`);
+            } else {
+                appendCyberLog(`[NOMINAL] Scan complete. Zero anomalous payloads detected across ${data.packets_analyzed} packets.`);
+            }
+        }
+
+        function appendCyberLog(msg) {
+            const consoleEl = document.getElementById("cyber-console");
+            const div = document.createElement("div");
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            consoleEl.appendChild(div);
+            setTimeout(() => { consoleEl.scrollTop = consoleEl.scrollHeight; }, 50);
+        }
 
         function renderPatients(patients) {
             const grid = document.getElementById("patientGrid");
             grid.innerHTML = patients.map(p => `
                 <div class="vital-card ${p.status}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-weight: bold; font-size: 14px; color: #0f172a; display: flex; align-items: center; gap: 8px;">
-                            <i class="fa-solid fa-user-doctor icon-large" style="color: #2563eb;"></i> Bed ${p.bed_id} — ${p.patient_name}
+                        <span style="font-weight: bold; font-size: 14px; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-user-doctor" style="color: var(--accent-blue);"></i> Bed ${p.bed_id} — ${p.patient_name}
                         </span>
                         <span class="status-pill status-${p.status}">${p.status}</span>
                     </div>
                     <div class="vital-metrics">
                         <div class="metric-box">
-                            <span class="metric-label"><i class="fa-solid fa-heart icon-large" style="color: #ef4444;"></i> Heart Rate</span>
+                            <span class="metric-label"><i class="fa-solid fa-heart" style="color: #ef4444;"></i> Heart Rate</span>
                             <span class="metric-value">${p.hr}</span>
                         </div>
                         <div class="metric-box">
-                            <span class="metric-label"><i class="fa-solid fa-gauge-high icon-large" style="color: #2563eb;"></i> Blood Pressure</span>
+                            <span class="metric-label"><i class="fa-solid fa-gauge-high" style="color: var(--accent-blue);"></i> Blood Pressure</span>
                             <span class="metric-value">${p.bp}</span>
                         </div>
                         <div class="metric-box">
-                            <span class="metric-label"><i class="fa-solid fa-lungs icon-large" style="color: #0284c7;"></i> SpO2</span>
+                            <span class="metric-label"><i class="fa-solid fa-lungs" style="color: #0284c7;"></i> SpO2</span>
                             <span class="metric-value">${p.spo2}</span>
                         </div>
                         <div class="metric-box">
-                            <span class="metric-label"><i class="fa-solid fa-temperature-half icon-large" style="color: #d97706;"></i> Temp</span>
+                            <span class="metric-label"><i class="fa-solid fa-temperature-half" style="color: #d97706;"></i> Temp</span>
                             <span class="metric-value">${p.temp}</span>
                         </div>
                     </div>
@@ -212,16 +568,12 @@
         }
 
         function appendLog(msg) {
-          const logs = document.getElementById("logs");
-          const div = document.createElement("div");
-          div.textContent = msg;
-          logs.appendChild(div);
-
-          // Scroll to bottom
-          setTimeout(() => {
-              logs.scrollTop = logs.scrollHeight;
-          }, 50);
-      }
+            const logs = document.getElementById("logs");
+            const div = document.createElement("div");
+            div.textContent = msg;
+            logs.appendChild(div);
+            setTimeout(() => { logs.scrollTop = logs.scrollHeight; }, 50);
+        }
 
         async function triggerVoice() {
             await fetch('/api/voice/trigger', { method: 'POST' });

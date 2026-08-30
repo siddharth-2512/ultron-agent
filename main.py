@@ -10,7 +10,7 @@ import urllib.request
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Optional
-
+from cyber import cyber_engine
 import cv2
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
@@ -65,7 +65,7 @@ state = {
 }
 
 # ---------------------------------------------------------------------------
-# Lifespan Context Manager (Replaces deprecated startup handlers)
+# Lifespan Context Manager
 # ---------------------------------------------------------------------------
 
 
@@ -87,7 +87,6 @@ app = FastAPI(title="ULTRON Clinical Dashboard", lifespan=lifespan)
 
 
 def get_db_connection():
-    # Timeout added to handle concurrent access across background threads
     conn = sqlite3.connect(DB_PATH, timeout=10.0)
     conn.row_factory = sqlite3.Row
     return conn
@@ -247,19 +246,25 @@ async def vitals_loop():
 
 
 # ---------------------------------------------------------------------------
-# Video + Fall Detection Worker
+# Video + Fall Detection Worker (Optimized for low-latency streaming)
 # ---------------------------------------------------------------------------
 
 
 def video_worker():
     detector = FallDetector(drop_threshold=0.12)
     cap = cv2.VideoCapture(0)
+    
+    # Force single frame hardware buffer to prevent lag build-up
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
     try:
         while True:
-            ret, frame = cap.read()
+            # Purge buffered stale frames to maintain real-time performance
+            cap.grab()
+            ret, frame = cap.retrieve()
+
             if not ret or frame is None or frame.size == 0:
-                time.sleep(0.05)
+                time.sleep(0.01)
                 continue
 
             resized = cv2.resize(frame, (480, 270))
@@ -268,10 +273,10 @@ def video_worker():
             if fall_now and not state["fall_detected"]:
                 state["fall_detected"] = True
 
-                # 1. Trigger verbal offline warning
+                # Non-blocking voice trigger via updated background wrapper
                 voice_engine.speak("Warning. Patient distress detected.")
 
-                # 2. Broadcast and log alert
+                # Broadcast and log alert
                 broadcast_threadsafe(
                     {
                         "type": "alert",
@@ -287,13 +292,13 @@ def video_worker():
                 )
 
             ok, buf = cv2.imencode(
-                ".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 70]
+                ".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 65]
             )
             if ok:
                 b64 = base64.b64encode(buf).decode("utf-8")
                 broadcast_threadsafe({"type": "video", "frame": b64})
 
-            time.sleep(0.03)
+            time.sleep(0.02)
     finally:
         cap.release()
         detector.close()
@@ -368,10 +373,7 @@ def voice_worker():
             )
             response = query_ai(cmd)
 
-        # 1. Output to UI terminal
         broadcast_threadsafe({"type": "log", "message": f"ULTRON: {response}"})
-
-        # 2. Save query, response to DB & trigger speech output
         log_query(cmd, response)
     else:
         broadcast_threadsafe(
@@ -398,6 +400,26 @@ async def index():
 async def trigger_voice():
     threading.Thread(target=voice_worker, daemon=True).start()
     return {"status": "listening"}
+
+
+@app.post("/api/cyber/scan")
+async def run_cyber_scan():
+    result = cyber_engine.calculate_threat_score()
+    
+    if result["anomaly_detected"]:
+        log_event(
+            None, 
+            "Network Gateway", 
+            "cyber_alert", 
+            f"Anomalous network activity! Threat Score: {result['threat_score']}"
+        )
+    
+    await manager.broadcast({
+        "type": "cyber_update",
+        "data": result
+    })
+    
+    return result
 
 
 @app.post("/api/alert/acknowledge")
